@@ -7,6 +7,7 @@ import logging
 from tqdm import tqdm
 import pandas as pd
 import json
+import pymongo
 config = json.load(open('config.json', 'r'))
 # 配置日志
 logging.basicConfig(level=logging.INFO,
@@ -171,6 +172,68 @@ class ArxivPaperFilter:
         self.processed_papers = self.processed_papers.sort_values('score', ascending=False)
         self._save_processed_papers()
         logging.info(f"处理完成，结果已保存到 {self.output_file}")
+    def filter_papers_by_mongo(self,criteria:str, mongo_client_url: str|None=None, collection: str='paper_daily', data_base: str = 'data', 
+                               date_limit: str = "2023-01-01", score_threshold: float = 6.0):
+        """
+        搜索和筛选论文
+        """
+        myclient = pymongo.MongoClient(mongo_client_url if mongo_client_url else config['mongo_client_url'])    
+        collection = myclient[collection]
+        data_base=collection[data_base]
+        client = arxiv.Client()
+        for data in data_base.find():
+            try:
+                print("正在处理数据:",data['date_time'])
+                arxiv_ids=[key.split('/')[-1].replace(',','.') for key in data['data']]
+                search = arxiv.Search(
+                    query='',
+                    id_list=arxiv_ids,
+                    sort_by=arxiv.SortCriterion.SubmittedDate,
+                    sort_order=arxiv.SortOrder.Descending
+                )
+                for paper in tqdm(client.results(search)):
+                    if self._is_paper_processed(paper.entry_id):
+                        continue
+
+                    paper_description = f"""
+                    标题：{paper.title}
+                    摘要：{paper.summary}
+                    作者：{', '.join([author.name for author in paper.authors])}
+                    发布日期：{paper.published.strftime("%Y-%m-%d")}
+                    """
+
+                    evaluation = self.evaluate_paper_with_gpt(paper_description, criteria)
+                    
+                    if evaluation["score"] >= score_threshold:
+                        paper_info = {
+                            "id": paper.entry_id,
+                            "title": paper.title,
+                            "abstract": paper.summary,
+                            "authors": ', '.join([author.name for author in paper.authors]),
+                            "published": paper.published.strftime("%Y-%m-%d"),
+                            "url": paper.pdf_url,
+                            "score": evaluation["score"],
+                            "evaluation": evaluation["reason"],
+                            "keyword": ''
+                        }
+                        
+                        # 将新论文添加到DataFrame
+                        new_paper_df = pd.DataFrame([paper_info])
+                        self.processed_papers = pd.concat([self.processed_papers, new_paper_df], ignore_index=True)
+                        
+                        # 立即保存，以防中断
+                        self._save_processed_papers()
+                    
+                    time.sleep(1)  # 避免API限制
+
+            except Exception as e:
+                logging.error(f"搜索过程中出错: {str(e)}")
+                self._save_processed_papers()
+
+        # 最后按分数降序排序并保存
+        self.processed_papers = self.processed_papers.sort_values('score', ascending=False)
+        self._save_processed_papers()
+        logging.info(f"处理完成，结果已保存到 {self.output_file}")
 
 def main():
     # 配置参数
@@ -222,7 +285,9 @@ def main():
     """
 
     # 创建过滤器实例并运行
+    
     paper_filter = ArxivPaperFilter(api_key)
+    paper_filter.filter_papers_by_mongo(criteria)
     paper_filter.search_and_filter_papers(
         keywords=keywords,
         criteria=criteria,
