@@ -1,4 +1,4 @@
 *.xlsx
-filtered_papers.csv
-output_translated.csv
-config.json
+*.csv
+*.json
+__pycache__/

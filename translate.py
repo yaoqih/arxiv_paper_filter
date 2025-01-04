@@ -34,7 +34,7 @@ def translate_csv_abstract(input_file, output_file):
         print(f"发生错误：{e}")
 
 # 使用示例
-input_csv_path = 'filtered_papers.csv'
-output_csv_path = 'output_translated.csv'
+input_csv_path = 'time_serial.csv'
+output_csv_path = 'time_serial_translated.csv'
 translate_csv_abstract(input_csv_path, output_csv_path)
 

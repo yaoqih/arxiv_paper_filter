@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文筛选器</title>
+    <!-- 引入Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transition: box-shadow 0.3s ease-in-out;
+        }
+
+        .status-badge {
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .progress {
+            height: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Arxiv 论文筛选</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/">预处理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/filter">结果页</a>
+                    </li>
+                </ul>
+                <!-- 添加清除按钮 -->
+                <button class="btn btn-danger ms-auto" onclick="confirmClear()">清除所有内容</button>
+            </div>
+        </div>
+    </nav>
+    <div class="container py-4">
+        <h2 class="text-center mb-4">ArXiv论文检索助手</h2>
+        <!-- Toast 提示 -->
+        <div class="toast-container position-fixed top-0 end-0 p-3">
+            <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-success text-white">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong class="me-auto">成功</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"
+                        aria-label="Close"></button>
+                </div>
+                <div class="toast-body">
+                    请求处理成功！
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索配置卡片 -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-search"></i> 搜索配置
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">检索要求</label>
+                    <div class="d-flex gap-2">
+                        <textarea class="form-control" id="paper-type" rows="3" placeholder="输入要检索的论文的要求"></textarea>
+                        <button class="btn btn-outline-primary align-self-start"
+                            onclick="sendRequest('paper-type',['paper-type'])">
+                            <i class="bi bi-send"></i> 生成检索意图
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">检索意图</label>
+                    <div class="d-flex gap-2">
+                        <textarea class="form-control" id="search-intent" rows="3" placeholder="描述你的检索意图"></textarea>
+                        <button class="btn btn-outline-primary align-self-start"
+                            onclick="sendRequest('search-intent',['paper-type'])">
+                            <i class="bi bi-send"></i> 生成检索关键词
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">查询关键词</label>
+                    <div class="d-flex gap-2">
+                        <textarea class="form-control" id="search-keywords" rows="3" placeholder="生成的查询关键词"></textarea>
+                        <button class="btn btn-outline-primary align-self-start"
+                            onclick="sendRequest('search-keywords',['search-keywords'])">
+                            <i class="bi bi-send"></i> 确认检索数量
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 检索预览卡片 -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-eye"></i> 检索预览
+                <span class="badge bg-light text-dark status-badge" id="preview-count">总数: 0</span>
+            </div>
+            <div class="card-body d-flex gap-2">
+                <div id="categories-container">
+                    <!-- 动态填充类别统计 -->
+                </div>
+                <button class="btn btn-outline-info align-self-start"
+                    onclick="sendRequest('start_dowanlad',['search-keywords','search-intent'])">
+                    <i class="bi bi-send"></i> 开始下载
+                </button>
+            </div>
+        </div>
+
+        <!-- 下载状态卡片 -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-download"></i> 下载状态
+            </div>
+            <div class="card-body">
+                <div class="progress mb-3">
+                    <div class="progress-bar" id="download-progress" role="progressbar" style="width: 0%"></div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>已完成: <span id="completed-downloads">0</span></span>
+                    <span>剩余: <span id="remaining-downloads">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 关键词处理卡片 -->
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-key"></i> 关键词处理
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>关键词提取</h6>
+                        <div id="update-keywords" class="mt-2">
+                            <!-- 动态填充关键词 -->
+                        </div>
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_update')">
+                            <i class="bi bi-arrow-right-circle"></i> 提取关键词
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>关键词纯化</h6>
+                        <div id="refined-keywords" class="mt-2">
+                            <!-- 动态填充纯化关键词 -->
+                        </div>
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_refinement')">
+                            <i class="bi bi-arrow-right-circle"></i> 纯化关键词
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>预处理结果</h6>
+                        <div id="preprocessed-keywords" class="mt-2">
+                            <!-- 动态填充预处理关键词 -->
+                        </div>
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_preprocessing')">
+                            <i class="bi bi-arrow-right-circle"></i> 预处理关键词
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function confirmClear() {
+    if (confirm('确定要清除所有内容吗？')) {
+        sendRequest('clean');  // 调用清除请求函数
+    }
+}
+        // 定义防抖函数
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 更新配置到服务器
+        function updateConfig(data) {
+            $.ajax({
+                url: '/api/update_progress',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    console.log('配置更新成功');
+                },
+                error: function (err) {
+                    console.error('配置更新失败:', err);
+                }
+            });
+        }
+
+        function adjustHeight(element) {
+            element.style.height = 'auto';
+            element.style.height = (element.scrollHeight) + 'px';
+        }
+
+        // 为所有 textarea 添加自动调整高度的功能
+        $('textarea.form-control').each(function () {
+            // 初始化高度
+            adjustHeight(this);
+        }).on('input change keyup paste propertychange', function () {
+            // 监听多个事件
+            adjustHeight(this);
+        });
+
+        // 将调整函数添加到全局作用域，供其他 JS 代码调用
+        window.adjustTextareaHeight = function (textareaId) {
+            const textarea = document.getElementById(textareaId);
+            if (textarea) {
+                adjustHeight(textarea);
+            }
+        };
+
+        // 更新UI显示
+        function updateUI(config) {
+            // 更新输入框
+            $('#paper-type').val(config.search_config.paper_type);
+            $('#search-intent').val(config.search_config.intent);
+            $('#search-keywords').val(config.search_config.keywords);
+
+            // 更新检索预览
+            $('#preview-count').text(`总数: ${config.search_preview.total_count}`);
+
+            // 更新类别统计
+            let categoriesHtml = '';
+            for (let category in config.search_preview.categories) {
+                categoriesHtml += `
+            <div class="badge bg-secondary me-2 mb-2">
+                ${category}: ${config.search_preview.categories[category]}
+            </div>
+        `;
+            }
+            $('#categories-container').html(categoriesHtml);
+
+            // 更新下载进度
+            const downloadTotal = config.download_status.completed + config.download_status.remaining;
+            const downloadPercent = downloadTotal > 0
+                ? (config.download_status.completed / downloadTotal * 100).toFixed(1)
+                : 0;
+            $('#download-progress').css('width', `${downloadPercent}%`).text(`${downloadPercent}%`);
+            $('#completed-downloads').text(config.download_status.completed);
+            $('#remaining-downloads').text(config.download_status.remaining);
+
+            // 更新关键词提取进度
+            let updateedHtml = `<span class="badge ${config.keyword_update ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_update}</span>`
+            $('#update-keywords').html(updateedHtml);
+
+            // 更新纯化关键词
+
+            let refinedHtml = `<span class="badge ${config.keyword_refinement ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_refinement}</span>`
+            $('#refined-keywords').html(refinedHtml);
+
+            // 更新预处理关键词
+            let preprocessedHtml = `<span class="badge ${config.keyword_preprocessing ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_preprocessing}</span>`
+            $('#preprocessed-keywords').html(preprocessedHtml);
+
+            $('textarea.form-control').each(function() {
+                const textarea = $(this);
+                const newValue = textarea.val();
+                if (textarea.data('lastValue') !== newValue) {
+                    adjustHeight(this);
+                    textarea.data('lastValue', newValue);
+                }
+            });
+        }
+
+        // 定期刷新状态
+        function refreshStatus() {
+            $.get('/api/get_progress', function (config) {
+                updateUI(config);
+            }).then(() => {
+                console.log('状态刷新成功');
+
+            }).catch(err => {
+                console.error('状态刷新失败:', err);
+            });
+
+        }
+        let isInputting = false;
+
+        // 输入框变化处理
+        const handleInputChange = debounce(function (e) {
+            isInputting = true; // 开始输入时设置标志
+
+            const inputId = e.target.id;
+            const value = e.target.value;
+
+            let data = {
+                search_config: {
+                    paper_type: $('#paper-type').val(),
+                    intent: $('#search-intent').val(),
+                    keywords: $('#search-keywords').val()
+                }
+            };
+
+            updateConfig(data);
+            setTimeout(() => {
+                isInputting = false;
+            }, 5000);
+        }, 500);
+
+        // 事件绑定
+        $(document).ready(function () {
+            // 初始加载
+            refreshStatus();
+
+            // 绑定输入框变化事件
+            $('#paper-type, #search-intent, #search-keywords').on('input', handleInputChange);
+
+            // 定期刷新状态（每5秒）
+            setInterval(() => {
+                if (!isInputting) { // 只在非输入状态下刷新
+                    refreshStatus();
+                }
+            }, 5000);
+        });
+        function sendRequest(fieldId, content_ids=[]) {
+            // content_ids 现在是一个数组
+            const contents = {};
+
+            // 遍历所有 content_id，获取对应的值
+            content_ids.forEach(id => {
+                contents[id] = document.getElementById(id).value;
+            });
+
+            // 发送Ajax请求
+            fetch('/openai_process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: fieldId,
+                    contents: contents  // 发送包含多个内容的对象
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                    const toast = new bootstrap.Toast(document.getElementById('successToast'), {
+                        autohide: true,
+                        delay: 2000
+                    });
+                    toast.show();
+                    // 处理响应数据
+                })
+        }
+
+
+    </script>
+    <!-- 引入jQuery和Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+
+</body>
+<style>
+
+</style>
+
+</html>
