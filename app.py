@@ -6,60 +6,26 @@ from datetime import datetime
 import os
 import threading
 import json
-from async_preprocess_utils import intention_analysis_write,generate_search_keywords_write,write_search_num,generate_criterion_write
+from async_preprocess_utils import generate_intent,generate_keywords,generate_criterion,write_search_num
 from  paper_filter import paper_spider_filter
-from extract_label import keywords_extraction_write
-from key_words_level_process import keyword_preprocessing_write
-from prefiy import prefiy_keywords_write
-config = json.load(open('config.json', 'r'))
+from postprocess_utils import extract_labels
+from build_index import build_index_write
+from purify import prefiy_keywords_write
+from progress import ProgressManager
 app = Flask(__name__)
-CONFIG_FILE = config['config_file']
 CORS(app)
+
+progress_manager=ProgressManager('data/progress_saving.json')
+secret = json.load(open('data/secret.json', 'r'))
+
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
-
-def load_config(is_first=False):
-    if is_first or not os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(create_default_config(), f, ensure_ascii=False, indent=2)
-    else :
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return create_default_config()
-
-def create_default_config():
-    return {
-        "search_config": {
-            "paper_type": "",
-            "intent": "",
-            "criterion": "",
-            "keywords": ""
-        },
-        "search_preview": {
-            "total_count": 0,
-            "categories": {}
-        },
-        "download_status": {
-            "keywords": [],
-            "completed": 0,
-            "remaining": 0,
-            "papers": []
-        },
-        "keyword_update": False,
-        "keyword_refinement": False,
-        "keyword_preprocessing": False,
-        "last_updated": datetime.now().isoformat()
-    }
-
-def save_config(config):
-    config['last_updated'] = datetime.now().isoformat()
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None):
+    
+def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None,start_score=None,end_score=None):
     # 读取CSV文件
     df = pd.read_csv(csv_file)
     
@@ -72,7 +38,7 @@ def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None
     # 遍历每一行
     for _, row in df.iterrows():
         # 将keywords字符串分割成列表
-        paper_keywords = set(row['keywords'].split('|'))
+        paper_keywords = set(row['labels'].split('|'))
         
         # 检查是否包含任何目标关键词
         if any(keyword in paper_keywords for keyword in keywords_list):
@@ -80,6 +46,10 @@ def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None
             if start_date and row['published'] < start_date:
                 continue
             if end_date and row['published'] > end_date:
+                continue
+            if start_score and row['score'] < start_score:
+                continue
+            if end_score and row['score'] > end_score:
                 continue
                 
             # 将符合条件的论文添加到结果列表
@@ -91,13 +61,13 @@ def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None
                 'published': row['published'],
                 'url': row['url'],
                 'score': row['score'],
-                'keywords': row['keywords'].split('|')
+                'labels': row['labels'].split('|')
             }
             filtered_papers.append(paper_dict)
     
     return filtered_papers
 def get_keywords_file():
-    return json.load(open("transformed_data.json",encoding='utf-8'))
+    return json.load(open("data/label_index.json",encoding='utf-8'))
     
 @app.route('/filter_papers', methods=['POST'])
 def filter_papers():
@@ -111,7 +81,7 @@ def filter_papers():
         for key in keywords:
             keywords_list.extend(keywords[key].keys())
     
-    return jsonify(filter_papers_by_csv('output_keywords_perify.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate']))
+    return jsonify(filter_papers_by_csv('data/labeled_purify.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate'],start_score=data['startScore'],end_score=data['endScore']))
 @app.route('/get_keywords', methods=['GET'])
 def get_keywords():
     return jsonify(get_keywords_file())
@@ -123,42 +93,39 @@ def home():
     return render_template('index.html')
 @app.route('/api/update_progress', methods=['POST'])
 def update_progress():
-    config = load_config()
     new_data = request.json
     # 更新搜索配置
     if 'search_config' in new_data:
-        config['search_config'].update(new_data['search_config'])
-    
-    save_config(config)
+        progress_manager.update_search_config(**new_data['search_config'])
     return jsonify({"status": "success"})
 @app.route('/api/get_progress', methods=['GET'])
 def get_progress():
-    return jsonify(load_config())
+    return jsonify(progress_manager.get_data())
 @app.route('/openai_process', methods=['POST'])
 def openai_process():
-    if request.json['type']=='search-intent':
-       task=intention_analysis_write
-       content=[request.json['contents']['paper-type']]
-    elif request.json['type']=='keywords_write':
-        task=generate_search_keywords_write
-        content=[request.json['contents']['paper-type']]
-    elif request.json['type']=='criterion':
-        task=generate_criterion_write
-        content=[request.json['contents']['paper-type']]
-    elif request.json['type']=='search-keywords':
+    if request.json['type']=='generate_intent':
+       task=generate_intent
+       content=[request.json['contents']['query'],True]
+    elif request.json['type']=='generate_keywords':
+        task=generate_keywords
+        content=[request.json['contents']['query'],True]
+    elif request.json['type']=='generate_criterion':
+        task=generate_criterion
+        content=[request.json['contents']['query'],True]
+    elif request.json['type']=='keywords':
         task=write_search_num
-        content=[request.json['contents']['search-keywords'].strip().split('\n')]
+        content=[request.json['contents']['keywords'].strip().split('\n')]
     elif request.json['type']=='start_dowanlad':
         task=paper_spider_filter
-        content=[request.json['contents']['search-keywords'].strip().split('\n'),request.json['contents']['search-intent']]
-    elif request.json['type']=='keyword_update':
-        task=keywords_extraction_write
-        content=[]
-    elif request.json['type']=='keyword_refinement':
+        content=[request.json['contents']['keywords'].strip().split('\n'),request.json['contents']['criterion']]
+    elif request.json['type']=='label':
+        task=extract_labels
+        content=['data/filtered_papers.csv','data/paper_labeled.csv','data/labels.json',True]
+    elif request.json['type']=='purify':
         task=prefiy_keywords_write
         content=[]
-    elif request.json['type']=='keyword_preprocessing':
-        task=keyword_preprocessing_write
+    elif request.json['type']=='build_index':
+        task=build_index_write
         content=[]
     elif request.json['type']=='clean':
         task=clean_file
@@ -168,10 +135,10 @@ def openai_process():
     thread.start()
     return jsonify({'data':'success'})
 def clean_file():
-    for file in ['output.csv','output_keywords.csv','key_words.json','transformed_data.json','output\duplicates.json','output\processed_data.json','output\merged_data.json','processing_history.json','raw_data.json']:
+    for file in ['data/filtered_papers.csv','output_keywords.csv','key_words.json','transformed_data.json','output\duplicates.json','output\processed_data.json','output\merged_data.json','processing_history.json','raw_data.json']:
         if os.path.exists(file):
             os.remove(file)
-    load_config(True)
+    progress_manager.clear()
 
 if __name__ == '__main__':
     app.run(debug=True)

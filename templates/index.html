@@ -78,9 +78,9 @@
                 <div class="mb-3">
                     <label class="form-label">检索要求</label>
                     <div class="d-flex gap-2">
-                        <textarea class="form-control" id="paper-type" rows="3" placeholder="输入要检索的论文的要求"></textarea>
+                        <textarea class="form-control" id="query" rows="3" placeholder="输入要检索的论文的要求"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('search-intent',['paper-type'])">
+                            onclick="sendRequest('generate_intent',['query'])">
                             <i class="bi bi-send"></i> 生成检索意图
                         </button>
                     </div>
@@ -88,9 +88,9 @@
                 <div class="mb-3">
                     <label class="form-label">检索意图</label>
                     <div class="d-flex gap-2">
-                        <textarea class="form-control" id="search-intent" rows="3" placeholder="描述你的检索意图"></textarea>
+                        <textarea class="form-control" id="intent" rows="3" placeholder="描述你的检索意图"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('criterion',['paper-type'])">
+                            onclick="sendRequest('generate_criterion',['query'])">
                             <i class="bi bi-send"></i> 生成评分标准
                         </button>
                     </div>
@@ -100,7 +100,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="criterion" rows="3" placeholder="描述你的论文评分标准"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('keywords_write',['paper-type'])">
+                            onclick="sendRequest('generate_keywords',['query'])">
                             <i class="bi bi-send"></i> 生成检索关键词
                         </button>
                     </div>
@@ -108,9 +108,9 @@
                 <div class="mb-3">
                     <label class="form-label">查询关键词</label>
                     <div class="d-flex gap-2">
-                        <textarea class="form-control" id="search-keywords" rows="3" placeholder="生成的查询关键词"></textarea>
+                        <textarea class="form-control" id="keywords" rows="3" placeholder="生成的查询关键词"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('search-keywords',['search-keywords'])">
+                            onclick="sendRequest('keywords',['keywords'])">
                             <i class="bi bi-send"></i> 确认检索数量
                         </button>
                     </div>
@@ -130,7 +130,7 @@
                     <!-- 动态填充类别统计 -->
                 </div>
                 <button class="btn btn-outline-info align-self-start"
-                    onclick="sendRequest('start_dowanlad',['search-keywords','criterion'])">
+                    onclick="sendRequest('start_dowanlad',['keywords','criterion'])">
                     <i class="bi bi-send"></i> 开始下载
                 </button>
             </div>
@@ -164,7 +164,7 @@
                         <div id="update-keywords" class="mt-2">
                             <!-- 动态填充关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_update')">
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('label')">
                             <i class="bi bi-arrow-right-circle"></i> 提取关键词
                         </button>
                     </div>
@@ -173,7 +173,7 @@
                         <div id="refined-keywords" class="mt-2">
                             <!-- 动态填充纯化关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_refinement')">
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('purify')">
                             <i class="bi bi-arrow-right-circle"></i> 纯化关键词
                         </button>
                     </div>
@@ -182,7 +182,7 @@
                         <div id="preprocessed-keywords" class="mt-2">
                             <!-- 动态填充预处理关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('keyword_preprocessing')">
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('build_index')">
                             <i class="bi bi-arrow-right-circle"></i> 预处理关键词
                         </button>
                     </div>
@@ -253,9 +253,9 @@
         // 更新UI显示
         function updateUI(config) {
             // 更新输入框
-            $('#paper-type').val(config.search_config.paper_type);
-            $('#search-intent').val(config.search_config.intent);
-            $('#search-keywords').val(config.search_config.keywords);
+            $('#query').val(config.search_config.query);
+            $('#intent').val(config.search_config.intent);
+            $('#keywords').val(config.search_config.keywords);
             $('#criterion').val(config.search_config.criterion);
 
             // 更新检索预览
@@ -282,16 +282,16 @@
             $('#remaining-downloads').text(config.download_status.remaining);
 
             // 更新关键词提取进度
-            let updateedHtml = `<span class="badge ${config.keyword_update ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_update}</span>`
+            let updateedHtml = `<span class="badge ${config.label ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.label}</span>`
             $('#update-keywords').html(updateedHtml);
 
             // 更新纯化关键词
 
-            let refinedHtml = `<span class="badge ${config.keyword_refinement ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_refinement}</span>`
+            let refinedHtml = `<span class="badge ${config.purify ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.purify}</span>`
             $('#refined-keywords').html(refinedHtml);
 
             // 更新预处理关键词
-            let preprocessedHtml = `<span class="badge ${config.keyword_preprocessing ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.keyword_preprocessing}</span>`
+            let preprocessedHtml = `<span class="badge ${config.build_index ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.build_index}</span>`
             $('#preprocessed-keywords').html(preprocessedHtml);
 
             $('textarea.form-control').each(function() {
@@ -327,9 +327,9 @@
 
             let data = {
                 search_config: {
-                    paper_type: $('#paper-type').val(),
-                    intent: $('#search-intent').val(),
-                    keywords: $('#search-keywords').val(),
+                    query: $('#query').val(),
+                    intent: $('#intent').val(),
+                    keywords: $('#keywords').val(),
                     criterion: $('#criterion').val()
                 }
             };
@@ -346,7 +346,7 @@
             refreshStatus();
 
             // 绑定输入框变化事件
-            $('#paper-type, #search-intent, #search-keywords,#criterion').on('input', handleInputChange);
+            $('#query, #intent, #keywords,#criterion').on('input change keyup paste propertychange', handleInputChange);
 
             // 定期刷新状态（每5秒）
             setInterval(() => {

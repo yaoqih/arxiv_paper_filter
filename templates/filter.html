@@ -40,8 +40,9 @@
                 </form>
                 <div id="slider-range"></div>
                 <p>选择的日期范围: <span id="date-range"></span></p>
+                <div id="slider-score"></div>
+                <p>选择的评分范围: <span id="score-range"></span></p>
                 <!-- 提交按钮 -->
-                <button type="submit" class="btn btn-primary" id="submit">筛选论文</button>
 
             </div>
             <div class="col-md-9 right-content">
@@ -62,11 +63,8 @@
 
 
         <script>
-            $('#submit').click(function () {
-                console.log(startDate, endDate);
-            });
             let filterData = {};
-            let globalStartDate, globalEndDate, globalfilterLabels;
+            let globalStartDate, globalEndDate, globalfilterLabels ,globalStartScore=-1,globalEndScore=99999;
             let paperDataGlobal = [];
             const itemsPerPage = 6; // 每页显示6篇论文
             let currentPage = 1;
@@ -154,8 +152,8 @@
                         </p>
                         <p class="card-text abstract-text">${paper.abstract}</p>
                         <div class="mb-2">
-                            ${paper.keywords.map(keyword =>
-                        `<span class="badge bg-secondary me-1">${keyword}</span>`
+                            ${paper.labels.map(label =>
+                        `<span class="badge bg-secondary me-1">${label}</span>`
                     ).join('')}
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -225,7 +223,6 @@
                 renderPagination();
             }
             // 渲染层级关键词
-            // 渲染层级关键词
             function filterByDateRange(filterData, globalStartDate, globalEndDate) {
                 // 结果对象，key为字符串，value为数组
                 const result = {};
@@ -276,7 +273,9 @@
                     data: JSON.stringify({
                         filterLists: window.filterLists,  // 原有的 filterLists
                         startDate: globalStartDate,                // 新增变量1
-                        endDate: globalEndDate                 // 新增变量2
+                        endDate: globalEndDate,                 // 新增变量2
+                        startScore:globalStartScore,
+                        endScore:globalEndScore
                     }, (key, value) => {
                         if (value instanceof Set) {
                             return Array.from(value);     // 保持 Set 转换为数组的逻辑
@@ -286,6 +285,41 @@
                     success: function (response) {
                         paperDataGlobal = response
                         changePage(1);
+                    if (globalStartScore==-1 )
+                    {
+
+                        let all_scores = [];
+                        Object.values(paperDataGlobal).forEach(arr => {
+                        if (arr.score) 
+                            all_scores.push(arr.score);
+                    });
+
+                    allScores = [...new Set(all_scores)].sort();
+                    minScore=allScores[0];
+                    maxScore=allScores[allScores.length-1];
+                    $("#slider-score").slider({
+                        range: true,
+                        min:minScore,
+                        max:maxScore,
+                        step: 1, // 一天的毫秒数
+                        values: [minScore, maxScore],
+                        slide: function (event, ui) {
+                            const startScore = ui.values[0];
+                            const endScore = ui.values[1];
+                            $("#score-range").text(
+                                startScore + "-" + endScore
+                            );
+                            globalStartScore = startScore;
+                            globalEndScore = endScore;
+                            sent_filter_data()
+                        }
+                    });
+                    $("#score-range").text(
+                        minScore + "-" + maxScore
+                    );
+                }
+                    globalStartScore = minScore;
+                    globalEndScore = maxScore;
                         console.log('数据发送成功:', response);
                     },
                     error: function (error) {

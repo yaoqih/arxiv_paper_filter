@@ -4,7 +4,8 @@ import pandas as pd
 from datetime import datetime
 from tqdm import tqdm
 import traceback
-config = json.load(open('config.json', 'r'))
+from progress import ProgressManager
+progress_manager=ProgressManager('data\progress_saving.json')
 
 # 读取文件
 def load_files(json_path, csv_path):
@@ -13,23 +14,23 @@ def load_files(json_path, csv_path):
     df = pd.read_csv(csv_path)
     return data, df
 
-def process_keyword(keyword, df, translator=None):
+def process_keyword(label, df, translator=None):
     #翻译（如果不是中文）
-    if not any('\u4e00' <= char <= '\u9fff' for char in keyword):
+    if not any('\u4e00' <= char <= '\u9fff' for char in label) and translator:
         try:
-            translation = translator.translate(keyword,src='en', dest='zh-CN').text
+            translation = translator.translate(label,src='en', dest='zh-CN').text
         except:
-            translation = keyword
+            translation = label
             traceback.print_exc()
     else:
-        translation = keyword
+        translation = label
     
     # 统计关键词出现次数
     # count = df[df['keywords'].str.contains(keyword, case=False, na=False)].shape[0]
     
     # 获取日期范围
-    df['keyword_list'] = df['keywords'].str.split('|')
-    date_range = df[df['keyword_list'].apply(lambda x:keyword  in x if isinstance(x, list) else False)]['published']
+    df['labels_list'] = df['labels'].str.split('|')
+    date_range = df[df['labels_list'].apply(lambda x:label  in x if isinstance(x, list) else False)]['published']
     # if not matching_rows.empty:
     # else:
     #     date_range = {'earliest': None, 'latest': None}
@@ -51,26 +52,13 @@ def transform_json(data, df):
             transformed_data[category][item] = process_keyword(item, df)
     
     return transformed_data
-def keyword_preprocessing_write(json_path = 'output\processed_data.json',csv_path = 'output_keywords.csv',output_path = 'transformed_data.json'):
+def build_index_write(json_path = 'data/labels_purify.json',csv_path = 'data/labeled_purify.csv',output_path = 'data/label_index.json'):
     data, df = load_files(json_path, csv_path)
     transformed_data = transform_json(data, df)
     # 保存结果
-    with open('transformed_data.json', 'w', encoding='utf-8') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(transformed_data, f, ensure_ascii=False, indent=4)
-    data_save=json.load(open(config['config_file'], 'r',encoding='utf-8'))
-    data_save['keyword_preprocessing']=True
-    data_save['last_updated'] = datetime.now().isoformat()
-    with open(config['config_file'], 'w', encoding='utf-8') as f:
-        json.dump(data_save, f, ensure_ascii=False, indent=2)
+    progress_manager.set_keyword_status(build_index=True)
 
 if __name__ == "__main__":
-    # 使用示例
-    json_path = 'output\processed_data.json'
-    csv_path = 'output.csv'
-
-    data, df = load_files(json_path, csv_path)
-    transformed_data = transform_json(data, df)
-
-    # 保存结果
-    with open('transformed_data.json', 'w', encoding='utf-8') as f:
-        json.dump(transformed_data, f, ensure_ascii=False, indent=4)
+    build_index_write()
