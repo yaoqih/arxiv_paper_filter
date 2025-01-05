@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 import threading
 import json
-from async_preprocess_utils import intention_analysis_write,generate_search_keywords_write,write_search_num
+from async_preprocess_utils import intention_analysis_write,generate_search_keywords_write,write_search_num,generate_criterion_write
 from  paper_filter import paper_spider_filter
 from extract_label import keywords_extraction_write
 from key_words_level_process import keyword_preprocessing_write
@@ -36,8 +36,8 @@ def create_default_config():
         "search_config": {
             "paper_type": "",
             "intent": "",
-            "keywords": "",
-            "confirmed_keywords": ""
+            "criterion": "",
+            "keywords": ""
         },
         "search_preview": {
             "total_count": 0,
@@ -111,7 +111,7 @@ def filter_papers():
         for key in keywords:
             keywords_list.extend(keywords[key].keys())
     
-    return jsonify(filter_papers_by_csv('output_keywords.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate']))
+    return jsonify(filter_papers_by_csv('output_keywords_perify.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate']))
 @app.route('/get_keywords', methods=['GET'])
 def get_keywords():
     return jsonify(get_keywords_file())
@@ -136,11 +136,14 @@ def get_progress():
     return jsonify(load_config())
 @app.route('/openai_process', methods=['POST'])
 def openai_process():
-    if request.json['type']=='paper-type':
+    if request.json['type']=='search-intent':
        task=intention_analysis_write
        content=[request.json['contents']['paper-type']]
-    elif request.json['type']=='search-intent':
+    elif request.json['type']=='keywords_write':
         task=generate_search_keywords_write
+        content=[request.json['contents']['paper-type']]
+    elif request.json['type']=='criterion':
+        task=generate_criterion_write
         content=[request.json['contents']['paper-type']]
     elif request.json['type']=='search-keywords':
         task=write_search_num

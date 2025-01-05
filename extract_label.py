@@ -11,9 +11,14 @@ client = OpenAI(
             base_url="https://api.chatanywhere.tech"
         )
 
-def create_improved_prompt(abstract):
-    return """Below are the title and abstract of a paper. Could you please help me extract the keywords at different levels? Please provide the results in JSON format only, so that my parsing won't go wrong. Thank you!
-""" + abstract
+def create_improved_prompt(paper):
+    return f"""
+Title: {paper['title']}
+Abstract: {paper['abstract']}
+
+Please use your insight to extract the most representative keywords for each level. Don't be too general, but please respond using our agreed JSON format so my parsing won't go wrong.
+
+""" 
 
 def extract_keywords(abstract, client):
     try:
@@ -21,61 +26,30 @@ def extract_keywords(abstract, client):
             model="gpt-4o-mini",  # 或其他适合的模型
             messages=[
                 {"role": "system", "content": """
-"You are a knowledgeable mentor with clear and accurate insights who is eager to help. I am a beginner student in the field of artificial intelligence. The AI field is developing so fast, with numerous papers published daily, making it difficult to track cutting-edge research. Therefore, I would like you to help me identify the most representative keywords at different levels for research papers. This way, I can quickly filter and study AI research based on keywords. Below is a reference hierarchy. You can extract corresponding keywords at different research levels based on the paper's title, abstract, and other information. It's okay if some levels are missing. Sometimes the abstract may not mention Specific_Models or algorithms; in such cases, you can fill in based on your experience and judgment.
+You are a knowledgeable paper reviewer with clear insights.
+Please read the title and abstract of the following paper, and extract the most representative keywords based on the paper's research content, methodology, contributions, and application scenarios. Ensure these keywords are specific and accurate, capable of uncovering the paper's characteristics, focus, and innovations across different dimensions. The keywords should cover the following dimensions:
 
-```
-**Level 1 (Discipline):**
+1. **Research_Type**: What type of research is this paper? For example, theoretical research, methodological research, applied research, survey/review research, etc.
+2. **Technical_Domain**: What is the core technical field of the paper? For example, computer vision, natural language processing, reinforcement learning, etc.
+3. **Methodology**: What are the main technical methods or model architectures used in the paper? For example, supervised learning, Generative Adversarial Networks (GAN), Convolutional Neural Networks (CNN), Transformer, etc.
+4. **Evaluation_Metrics**: What performance evaluation metrics were used in the paper? For example, accuracy, inference speed, computational efficiency, etc.
+5. **Application_Scenarios**: In which specific applications does this paper's research contribute? For example, healthcare, autonomous driving, finance, industry, etc.
+6. **Innovation_Aspects**: In what aspects does the paper present innovations or breakthroughs? For example, theoretical innovation, algorithmic innovation, application innovation, etc.
+7. **Experimental_Design**: What experimental design methods were used in the paper? For example, which datasets were used, whether ablation studies were conducted, comparisons with other methods, etc.
 
-*   This is currently the broadest level, representing major academic fields. It's recommended to keep it concise, emphasizing the independence and inclusiveness of each discipline. No significant changes are needed.
-*   **Example Keywords:** Computer Science, Mathematics, Statistics, Physics, Medicine, Psychology, etc.
+The final output should be returned in JSON format as follows:
 
-**Level 2 (Research_Area):**
-
-*   This level currently focuses on specific research directions or subfields. When refining it, it's recommended to distinguish between "technical areas" and "application areas" to avoid overlap. For example, Machine Learning is a technical area, while "Image Recognition" or "Natural Language Processing" can be considered application areas.
-*   **Example Keywords:** Machine Learning, Deep Learning, Computer Vision, Natural Language Processing, Data Mining, etc.
-
-**Level 3 (Research_Topic):**
-
-*   This level is already quite appropriate. It's recommended to expand "main research questions" to include hot topics, challenges, and technical bottlenecks within the field.
-*   **Example Keywords:** Generative Adversarial Networks, Reinforcement Learning, Multimodal Learning, Pre-trained Models, Transfer Learning, Model Compression, Explainability, etc.
-
-**Level 4 (Research_Method):**
-
-*   This level is very important, but it's necessary to pay attention to the specificity and generalizability of the methods. It's possible to differentiate between "fundamental Research_Methods" and "applied Research_Methods" to ensure that each method corresponds to a clear problem domain.
-*   **Example Keywords:** Transformer Architecture, Attention Mechanism, Contrastive Learning, Federated Learning, Meta-Learning, Deep Reinforcement Learning, etc.
-
-**Level 5 (Specific_Model):**
-
-*   This level is valuable, but when extracting models, it's possible to further divide them into "base models" and "specific application models." For example, differentiating between general-purpose models and specialized models would add more hierarchical structure.
-*   **Example Keywords:** BERT, GPT-3, GPT-4, ResNet, Stable Diffusion, VGG, CLIP, etc.
-
-**Level 6 (Model_Variants):**
-
-*   This level is very clear. It's possible to further refine the content related to model improvements, considering whether to classify them according to different application scenarios (such as domain-specific adjustments, optimizations, etc.).
-*   **Example Keywords:** RoBERTa, ALBERT, GPT-4 (variants implied), ResNet-50, ResNet-101, EfficientNet, Swin-Transformer, etc.
-
-**Level 7 (Specific_Technical_Details):**
-
-*   It's recommended to make the technical details level more specific. For example, detailed analysis of Specific_Technical_Details can be carried out according to application scenarios (such as text generation, image processing, etc.).
-*   **Example Keywords:** Self-Attention Mechanism, Positional Encoding, Layer Normalization, Activation Functions, Optimizers, Loss Functions, Convolution Operations, Normalization, etc.
-                 
-```
-Please feel free to use your insight to extract the most representative keyword for each level, but please respond in our agreed JSON format so my parsing won't have errors.
-
-```json
 {
-"Discipline": [],         
-"Research_Area": [],      
-"Research_Topic": [],    
-"Research_Method": [],   
-"Specific_Model": [],     
-"Model_Variants": [],     
-"Specific_Technical_Details": [] 
+    "Research_Type": [],
+    "Technical_Domain": [],
+    "Methodology": [],
+    "Evaluation_Metrics": [],
+    "Application_Scenarios": [],
+    "Innovation_Aspects": [],
+    "Experimental_Design": []
 }
-```
 
-I think each level should be highly cohesive, with low coupling between levels. Keywords should be as specific as possible and closely aligned with the paper's research focus. If they're too broad, they won't accurately locate the paper's research."
-                 """},
+               """},
                 {"role": "user", "content": create_improved_prompt(abstract)}
             ],
             temperature=0.7,
@@ -104,7 +78,7 @@ def process_csv(input_file,out_file, progress_file="key_words.json"):
         # 使用tqdm显示进度条
         for i in tqdm(range(last_processed, len(df)), initial=last_processed, total=len(df)):
             if df.loc[i, 'id'] not in result_save :
-                keywords = extract_keywords(df.loc[i, 'abstract'], client)
+                keywords = extract_keywords(df.loc[i], client)
                 if keywords:
                     all_keywords=[]
                     for values in keywords.values():

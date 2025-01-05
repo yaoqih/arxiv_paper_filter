@@ -80,7 +80,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="paper-type" rows="3" placeholder="输入要检索的论文的要求"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('paper-type',['paper-type'])">
+                            onclick="sendRequest('search-intent',['paper-type'])">
                             <i class="bi bi-send"></i> 生成检索意图
                         </button>
                     </div>
@@ -90,7 +90,17 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="search-intent" rows="3" placeholder="描述你的检索意图"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('search-intent',['paper-type'])">
+                            onclick="sendRequest('criterion',['paper-type'])">
+                            <i class="bi bi-send"></i> 生成评分标准
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">评分标准</label>
+                    <div class="d-flex gap-2">
+                        <textarea class="form-control" id="criterion" rows="3" placeholder="描述你的论文评分标准"></textarea>
+                        <button class="btn btn-outline-primary align-self-start"
+                            onclick="sendRequest('keywords_write',['paper-type'])">
                             <i class="bi bi-send"></i> 生成检索关键词
                         </button>
                     </div>
@@ -120,7 +130,7 @@
                     <!-- 动态填充类别统计 -->
                 </div>
                 <button class="btn btn-outline-info align-self-start"
-                    onclick="sendRequest('start_dowanlad',['search-keywords','search-intent'])">
+                    onclick="sendRequest('start_dowanlad',['search-keywords','criterion'])">
                     <i class="bi bi-send"></i> 开始下载
                 </button>
             </div>
@@ -246,6 +256,7 @@
             $('#paper-type').val(config.search_config.paper_type);
             $('#search-intent').val(config.search_config.intent);
             $('#search-keywords').val(config.search_config.keywords);
+            $('#criterion').val(config.search_config.criterion);
 
             // 更新检索预览
             $('#preview-count').text(`总数: ${config.search_preview.total_count}`);
@@ -318,7 +329,8 @@
                 search_config: {
                     paper_type: $('#paper-type').val(),
                     intent: $('#search-intent').val(),
-                    keywords: $('#search-keywords').val()
+                    keywords: $('#search-keywords').val(),
+                    criterion: $('#criterion').val()
                 }
             };
 
@@ -334,7 +346,7 @@
             refreshStatus();
 
             // 绑定输入框变化事件
-            $('#paper-type, #search-intent, #search-keywords').on('input', handleInputChange);
+            $('#paper-type, #search-intent, #search-keywords,#criterion').on('input', handleInputChange);
 
             // 定期刷新状态（每5秒）
             setInterval(() => {
