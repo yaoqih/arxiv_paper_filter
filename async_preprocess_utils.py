@@ -11,7 +11,7 @@ progress_manager=ProgressManager('data\progress_saving.json')
 secret = json.load(open('data/secret.json', 'r'))
 client = OpenAI(
             api_key=secret['api_key'],
-            base_url="https://api.chatanywhere.tech"
+            base_url=secret['base_url']
         )
 scraper = ArxivScraper()
 def generate_intent(query:str,write=False) -> str:

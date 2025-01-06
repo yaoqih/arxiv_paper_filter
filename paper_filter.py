@@ -13,19 +13,16 @@ from progress import ProgressManager
 from async_preprocess_utils import evaluate_paper
 progress_manager=ProgressManager('data\progress_saving.json')
 
-secret = json.load(open('data/secret.json', 'r'))
-# 配置日志
 logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ArxivPaperFilter:
-    def __init__(self, api_key: str, output_file: str = "filtered_papers.csv"):
+    def __init__(self,  output_file: str = "filtered_papers.csv"):
         """
         初始化类
         :param api_key: OpenAI API密钥
         :param output_file: 输出文件路径
         """
-        self.api_key = api_key
         self.output_file = output_file
         self.processed_papers = self._load_processed_papers()
 
@@ -169,8 +166,7 @@ class ArxivPaperFilter:
 def paper_spider_filter(keywords: List[str], criteria: str,output_file:str='data/filtered_papers.csv'):
     # 配置参数
     keywords=[_.strip() for _ in keywords]
-    api_key = secret['api_key']    
-    paper_filter = ArxivPaperFilter(api_key,output_file=output_file)
+    paper_filter = ArxivPaperFilter(output_file=output_file)
     count=0
     # paper_filter.filter_papers_by_mongo(criteria)
     for keyword in keywords:

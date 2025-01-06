@@ -3,6 +3,7 @@ import json
 from flask_cors import CORS
 import pandas as pd
 from datetime import datetime
+from flask_compress import Compress
 import os
 import threading
 import json
@@ -14,9 +15,10 @@ from purify import prefiy_keywords_write
 from progress import ProgressManager
 app = Flask(__name__)
 CORS(app)
+Compress(app)
+
 
 progress_manager=ProgressManager('data/progress_saving.json')
-secret = json.load(open('data/secret.json', 'r'))
 
 @app.after_request
 def after_request(response):

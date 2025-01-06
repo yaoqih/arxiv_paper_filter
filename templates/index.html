@@ -4,10 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>论文筛选器</title>
+    <title>ArXiv论文检索助手
+    </title>
     <!-- 引入Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/jqueryui/1.13.3/themes/base/jquery-ui.min.css">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.png') }}">
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.3/jquery-ui.min.js"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
     <style>
         .card {
             margin-bottom: 20px;
@@ -26,6 +32,21 @@
 
         .progress {
             height: 10px;
+        }
+
+        #countdown {
+            font-weight: normal;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+        }
+
+        #timer {
+            font-weight: bold;
+        }
+
+        #progressMessage {
+            color: #666;
+            font-size: 0.85em;
         }
     </style>
 </head>
@@ -63,14 +84,18 @@
                 <div class="toast-header bg-success text-white">
                     <i class="bi bi-check-circle me-2"></i>
                     <strong class="me-auto">成功</strong>
+                    <span id="countdown" class="mx-2">预计需要 <span id="timer">0</span> 秒</span>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"
                         aria-label="Close"></button>
                 </div>
                 <div class="toast-body">
-                    请求处理成功！
+                    <div id="toastMessage">请求处理成功！</div>
+                    <div id="progressMessage" class="text-muted small mt-1"></div>
                 </div>
             </div>
         </div>
+
+
 
         <!-- 搜索配置卡片 -->
         <div class="card">
@@ -83,7 +108,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="query" rows="3" placeholder="输入要检索的论文的要求"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('generate_intent',['query'])">
+                            onclick="sendRequest('generate_intent',['query'],3,'正在生成检索意图....')">
                             <i class="bi bi-send"></i> 生成检索意图
                         </button>
                     </div>
@@ -93,7 +118,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="intent" rows="3" placeholder="描述你的检索意图"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('generate_criterion',['query'])">
+                            onclick="sendRequest('generate_criterion',['query'],5,'正在生成评分标准....')">
                             <i class="bi bi-send"></i> 生成评分标准
                         </button>
                     </div>
@@ -103,7 +128,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="criterion" rows="3" placeholder="描述你的论文评分标准"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('generate_keywords',['query'])">
+                            onclick="sendRequest('generate_keywords',['query'],3,'正在生成检索关键词....')">
                             <i class="bi bi-send"></i> 生成检索关键词
                         </button>
                     </div>
@@ -113,7 +138,7 @@
                     <div class="d-flex gap-2">
                         <textarea class="form-control" id="keywords" rows="3" placeholder="生成的查询关键词"></textarea>
                         <button class="btn btn-outline-primary align-self-start"
-                            onclick="sendRequest('keywords',['keywords'])">
+                            onclick="sendRequest('keywords',['keywords'],20,'正在检索arxiv确定每个关键词论文数量....')">
                             <i class="bi bi-send"></i> 确认检索数量
                         </button>
                     </div>
@@ -133,7 +158,7 @@
                     <!-- 动态填充类别统计 -->
                 </div>
                 <button class="btn btn-outline-info align-self-start"
-                    onclick="sendRequest('start_dowanlad',['keywords','criterion'])">
+                    onclick="sendRequest('start_dowanlad', ['keywords','criterion'], globalConfig.search_preview.total_count * 2, '正在下载论文和打分....')">
                     <i class="bi bi-send"></i> 开始下载
                 </button>
             </div>
@@ -167,7 +192,7 @@
                         <div id="update-keywords" class="mt-2">
                             <!-- 动态填充关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('label')">
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('label',[], globalConfig.search_preview.total_count * 2, '正在提取关键词....')">
                             <i class="bi bi-arrow-right-circle"></i> 提取关键词
                         </button>
                     </div>
@@ -176,32 +201,31 @@
                         <div id="refined-keywords" class="mt-2">
                             <!-- 动态填充纯化关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('purify')">
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('purify',[], globalConfig.search_preview.total_count * 2, '正在纯化关键词....')">
                             <i class="bi bi-arrow-right-circle"></i> 纯化关键词
                         </button>
                     </div>
                     <div class="col-md-4">
-                        <h6>预处理结果</h6>
+                        <h6>构建索引</h6>
                         <div id="preprocessed-keywords" class="mt-2">
                             <!-- 动态填充预处理关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('build_index')">
-                            <i class="bi bi-arrow-right-circle"></i> 预处理关键词
+                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('build_index',[], parseInt(globalConfig.search_preview.total_count/10) ,'正在构建索引')">
+                            <i class="bi bi-arrow-right-circle"></i> 构建索引
                         </button>
                     </div>
                 </div>
             </div>
         </div>
-        
+
     </div>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        let globalConfig={}
         function confirmClear() {
-    if (confirm('确定要清除所有内容吗？')) {
-        sendRequest('clean');  // 调用清除请求函数
-    }
-}
+            if (confirm('确定要清除所有内容吗？')) {
+                sendRequest('clean',3,"正在清理....");  // 调用清除请求函数
+            }
+        }
         // 定义防抖函数
         function debounce(func, wait) {
             let timeout;
@@ -297,7 +321,7 @@
             let preprocessedHtml = `<span class="badge ${config.build_index ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.build_index}</span>`
             $('#preprocessed-keywords').html(preprocessedHtml);
 
-            $('textarea.form-control').each(function() {
+            $('textarea.form-control').each(function () {
                 const textarea = $(this);
                 const newValue = textarea.val();
                 if (textarea.data('lastValue') !== newValue) {
@@ -311,6 +335,7 @@
         function refreshStatus() {
             $.get('/api/get_progress', function (config) {
                 updateUI(config);
+                globalConfig=config;
             }).then(() => {
                 console.log('状态刷新成功');
 
@@ -358,7 +383,54 @@
                 }
             }, 5000);
         });
-        function sendRequest(fieldId, content_ids=[]) {
+        function showToastWithCountdown(duration = 5, message = '处理中...') {
+            const toast = document.getElementById('successToast');
+            const bsToast = new bootstrap.Toast(toast, {
+                autohide: false // 禁用自动隐藏
+            });
+
+            const timerElement = document.getElementById('timer');
+            const progressMessage = document.getElementById('progressMessage');
+            const toastMessage = document.getElementById('toastMessage');
+            let timeLeft = duration;
+
+            // 显示初始信息
+            timerElement.textContent = timeLeft;
+            toastMessage.textContent = message;
+            progressMessage.textContent = '正在处理中，请稍候...';
+
+            // 显示 Toast
+            bsToast.show();
+
+            // 开始倒计时
+            const countdownInterval = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = timeLeft;
+
+                // 根据剩余时间更新提示信息
+                if (timeLeft <= Math.floor(duration / 2)) {
+                    progressMessage.textContent = '处理过半，请继续等待...';
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    toastMessage.textContent = '处理完成！';
+                    progressMessage.textContent = '操作已完成';
+
+                    // 完成后等待 1 秒再关闭
+                    setTimeout(() => {
+                        bsToast.hide();
+                    }, 1000);
+                }
+            }, 1000);
+
+            // 监听 Toast 隐藏事件
+            toast.addEventListener('hidden.bs.toast', () => {
+                clearInterval(countdownInterval);
+            });
+        }
+
+        function sendRequest(fieldId, content_ids = [],duration = 5, message = '处理中...') {
             // content_ids 现在是一个数组
             const contents = {};
 
@@ -381,11 +453,7 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('Success:', data);
-                    const toast = new bootstrap.Toast(document.getElementById('successToast'), {
-                        autohide: true,
-                        delay: 2000
-                    });
-                    toast.show();
+                    showToastWithCountdown(duration,message);
                     // 处理响应数据
                 })
         }
@@ -393,13 +461,6 @@
 
     </script>
     <!-- 引入jQuery和Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
 
 </body>
-<style>
-
-</style>
-
 </html>

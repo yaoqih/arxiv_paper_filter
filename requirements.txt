@@ -1,0 +1,12 @@
+arxiv
+beautifulsoup4
+faiss_cpu
+Flask
+Flask_Cors
+numpy==1.24.4
+openai
+pandas
+pymongo
+Requests
+tqdm
+flask_compress
