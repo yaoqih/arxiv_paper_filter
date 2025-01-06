@@ -8,8 +8,8 @@ import threading
 import json
 from async_preprocess_utils import generate_intent,generate_keywords,generate_criterion,write_search_num
 from  paper_filter import paper_spider_filter
-from postprocess_utils import extract_labels
-from build_index import build_index_write
+from postprocess_utils import extract_labels,filter_papers_by_csv
+from build_index import build_index
 from purify import prefiy_keywords_write
 from progress import ProgressManager
 app = Flask(__name__)
@@ -25,72 +25,37 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
     
-def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None,start_score=None,end_score=None):
-    # 读取CSV文件
-    df = pd.read_csv(csv_file)
-    
-    # 将published列转换为datetime格式
-    # df['published'] = pd.to_datetime(df['published'])
-    
-    # 创建一个空的结果列表
-    filtered_papers = []
-    
-    # 遍历每一行
-    for _, row in df.iterrows():
-        # 将keywords字符串分割成列表
-        paper_keywords = set(row['labels'].split('|'))
-        
-        # 检查是否包含任何目标关键词
-        if any(keyword in paper_keywords for keyword in keywords_list):
-            # 检查日期范围
-            if start_date and row['published'] < start_date:
-                continue
-            if end_date and row['published'] > end_date:
-                continue
-            if start_score and row['score'] < start_score:
-                continue
-            if end_score and row['score'] > end_score:
-                continue
-                
-            # 将符合条件的论文添加到结果列表
-            paper_dict = {
-                'id': row['id'],
-                'title': row['title'],
-                'abstract': row['abstract'],
-                'authors': row['authors'],
-                'published': row['published'],
-                'url': row['url'],
-                'score': row['score'],
-                'labels': row['labels'].split('|')
-            }
-            filtered_papers.append(paper_dict)
-    
-    return filtered_papers
-def get_keywords_file():
-    return json.load(open("data/label_index.json",encoding='utf-8'))
-    
 @app.route('/filter_papers', methods=['POST'])
 def filter_papers():
     data = request.json
     selected_filters=data['filterLists']
-    keywords=get_keywords_file()
+    data_path=data['dataPath']
+    keywords=json.load(open(f"{data_path}label_index.json",encoding='utf-8'))
     keywords_list = []
     if selected_filters:
         keywords_list.extend([_['key'] for _ in selected_filters])
     else:
         for key in keywords:
             keywords_list.extend(keywords[key].keys())
-    
-    return jsonify(filter_papers_by_csv('data/labeled_purify.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate'],start_score=data['startScore'],end_score=data['endScore']))
-@app.route('/get_keywords', methods=['GET'])
+    return jsonify(filter_papers_by_csv(f'{data_path}labeled_purify.csv', keywords_list,start_date=data['startDate'],end_date=data['endDate'],start_score=data['startScore'],end_score=data['endScore']))
+
+@app.route('/get_keywords', methods=['POST'])
 def get_keywords():
-    return jsonify(get_keywords_file())
+    data = request.json
+    return jsonify(json.load(open(f"{data['dataPath']}label_index.json",encoding='utf-8')))
+
 @app.route('/filter', methods=['GET'])
 def filter():
     return render_template('filter.html')
+
 @app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
+
+@app.route('/outlook', methods=['GET'])
+def outlook():
+    return render_template('outlook.html')
+
 @app.route('/api/update_progress', methods=['POST'])
 def update_progress():
     new_data = request.json
@@ -101,6 +66,7 @@ def update_progress():
 @app.route('/api/get_progress', methods=['GET'])
 def get_progress():
     return jsonify(progress_manager.get_data())
+
 @app.route('/openai_process', methods=['POST'])
 def openai_process():
     if request.json['type']=='generate_intent':
@@ -125,8 +91,8 @@ def openai_process():
         task=prefiy_keywords_write
         content=[]
     elif request.json['type']=='build_index':
-        task=build_index_write
-        content=[]
+        task=build_index
+        content=['data/labels_purify.json','data/labeled_purify.csv','data/label_index.json',True]
     elif request.json['type']=='clean':
         task=clean_file
         content=[]
@@ -134,11 +100,12 @@ def openai_process():
     thread.daemon = True  # 可选：设置为守护线程，当主线程结束时，子线程也会结束
     thread.start()
     return jsonify({'data':'success'})
+
 def clean_file():
-    for file in ['data/filtered_papers.csv','output_keywords.csv','key_words.json','transformed_data.json','output\duplicates.json','output\processed_data.json','output\merged_data.json','processing_history.json','raw_data.json']:
+    for file in ['data/duplicates_save.json','data/embeding_save.json','data/filtered_papers.csv','data/label_index.json','data/labeled_purify.csv','data/labels_purify.json','data/labels.json','data/paper_labeled.csv','data/progress_saving.json','data\similar_save.json']:
         if os.path.exists(file):
             os.remove(file)
     progress_manager.clear()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,host='0.0.0.0')

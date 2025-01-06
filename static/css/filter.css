@@ -1,0 +1,47 @@
+.text-bg-primary-outline {
+    color: #0d6efd;
+    background-color: transparent;
+    border: 1px solid #0d6efd;
+}
+
+body {
+    overflow-x: hidden;
+    /* 隐藏水平滚动条 */
+}
+
+.left-sidebar {
+    /* position: fixed; */
+    /* top: 0; */
+    /* left: 0; */
+    height: 94vh;
+    /* width: 250px; */
+    /* 可根据需要调整宽度 */
+    /* background-color: #f8f9fa; */
+    /* 可根据需要调整背景颜色 */
+    overflow-y: auto;
+    /* 如果左侧内容超出高度，允许左侧滚动 */
+}
+
+.right-content {
+    /* margin-left: 250px; */
+    /* 与左侧宽度相同 */
+    /* padding: 20px; */
+    overflow-y: auto;
+    /* 允许右侧内容滚动 */
+    height: 94vh;
+}
+
+.badge {
+    cursor: pointer;
+}
+
+.badge.selected {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.more-btn {
+    cursor: pointer;
+    color: #0d6efd;
+    text-decoration: underline;
+}

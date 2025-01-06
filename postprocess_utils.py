@@ -65,5 +65,50 @@ def extract_labels(input_file, out_file, progress_file, write=False):
         
         if write:
             progress_manager.set_keyword_status(label=True)
+def filter_papers_by_csv(csv_file, keywords_list, start_date=None, end_date=None,start_score=None,end_score=None):
+    # 读取CSV文件
+    df = pd.read_csv(csv_file)
+    data_path=csv_file.split('/')[0]+'/'
+    wechat_url={}
+    if os.path.exists(data_path+'wechat_info.json'):
+        wechat_info=json.load(open(data_path+'wechat_info.json',encoding='utf-8'))    
+        for key in wechat_info:
+            for url in wechat_info[key]['arxiv_url']:
+                wechat_url[url]=key
+    # 创建一个空的结果列表
+    filtered_papers = []
+    
+    # 遍历每一行
+    for _, row in df.iterrows():
+        # 将keywords字符串分割成列表
+        paper_keywords = set(row['labels'].split('|'))
+        
+        # 检查是否包含任何目标关键词
+        if any(keyword in paper_keywords for keyword in keywords_list):
+            # 检查日期范围
+            if start_date and row['published'] < start_date:
+                continue
+            if end_date and row['published'] > end_date:
+                continue
+            if start_score and row['score'] < start_score:
+                continue
+            if end_score and row['score'] > end_score:
+                continue
+                
+            # 将符合条件的论文添加到结果列表
+            paper_dict = {
+                'id': row['id'],
+                'title': row['title'],
+                'abstract': row['abstract'],
+                'authors': row['authors'],
+                'published': row['published'],
+                'url': row['url'],
+                'score': row['score'],
+                'labels': row['labels'].split('|'),
+                "wechat_url":wechat_url.get(row['id'],'')
+            }
+            filtered_papers.append(paper_dict)
+    
+    return filtered_papers
 if __name__=='__main__':
     extract_labels('data/filtered_papers.csv','data/paper_labeled.csv','data/labels.json',write=True)

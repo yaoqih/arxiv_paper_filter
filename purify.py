@@ -8,6 +8,9 @@ import pandas as pd
 import numpy as np
 from async_preprocess_utils import judge_simiar_keywords,judge_duplicate_categores,embeding_keywords
 from progress import ProgressManager
+import time
+import faiss
+
 progress_manager=ProgressManager('data\progress_saving.json')
 
 class PaperCategoryManager:
@@ -83,7 +86,7 @@ class PaperCategoryManager:
             
         if all_save or embeding_save:
             with open(os.path.join(self.out_dir, 'embeding_save.json'), 'w', encoding='utf-8') as f:
-                json.dump(self.embeding_save, f, indent=2, ensure_ascii=False)
+                json.dump(self.embeding_save, f)
         if all_save or processed_data:
             with open(os.path.join(self.out_dir, 'labels_purify.json'), 'w', encoding='utf-8') as f:
                 json.dump(self.processed_data, f, indent=2, ensure_ascii=False)
@@ -113,42 +116,49 @@ class PaperCategoryManager:
                 self.duplicates_save[term] = keep_category
                 self.save_results(duplicates_save=True)
 
-    def find_similar_keywords(self, data: dict, threshold: float = 0.77) -> List[str]:
+    def find_similar_keywords(self, data: dict, threshold: float = 0.82) -> List[str]:
         """查找与给定关键词相似的关键词"""
         inverse_index = self.build_inverse_index(data)
         keywords_all=set(inverse_index.keys())
         need_embeding_keywords=keywords_all-set(self.embeding_save.keys())
         if need_embeding_keywords:
-            embeddings = embeding_keywords(need_embeding_keywords)
+            embeddings = embeding_keywords(list(need_embeding_keywords))
             self.embeding_save.update(embeddings)
         self.save_results(embeding_save=True)
-        similarity_list = self.calculate_similarities(self.embeding_save) 
-        while similarity_list and similarity_list[0][0] > threshold:
+        # similarity_list = self.calculate_similarities(self.embeding_save) 
+        similarity_list = self.calculate_similarities_faiss_batch(self.embeding_save, threshold=threshold)
+        df_save=pd.read_csv(os.path.join(self.out_dir, 'paper_labeled.csv'))
+        count=0
+        while similarity_list :
             sim = similarity_list.pop(0)
             key1 = f'{sim[1]}|{sim[2]}'
             key2 = f'{sim[2]}|{sim[1]}'
             
             # 从缓存中查找已存在的相似度判断结果
             cached_result = self.similar_save.get(key1) or self.similar_save.get(key2)
-            
+
             if cached_result is not None:
                 keep_category = cached_result
             else:
                 keep_category = judge_simiar_keywords(sim[1], sim[2], inverse_index)
             if keep_category==1:
-                self.process_similar_keywords(sim[1], sim[2])
+                df_save=self.process_similar_keywords(sim[1], sim[2],df_save)
             elif keep_category==2:
-                self.process_similar_keywords(sim[2], sim[1])
+                df_save=self.process_similar_keywords(sim[2], sim[1],df_save)
             self.similar_save[f'{sim[1]}|{sim[2]}'] = keep_category
-            self.save_results(similar_save=True)
             index=0
-            while index<len(similarity_list):
+            while index<len(similarity_list) and similarity_list[index][0]>=threshold:
                 if sim[1] in similarity_list[index] or sim[2] in similarity_list[index]:
                     similarity_list.pop(index)
                 else:
                     index+=1
+            count+=1
+            if count%1000==0 or len(similarity_list)==0:
+                df_save.to_csv(os.path.join(self.out_dir, 'labeled_purify.csv'),index=False)
+                self.save_results(similar_save=True)
+            print("remaining:",str(index))
             
-    def process_similar_keywords(self,keep_keyword: str, remove_keyword: str) -> None:
+    def process_similar_keywords(self,keep_keyword: str, remove_keyword: str,df_save:pd.DataFrame) -> None:
         """处理相似关键词"""
         # 记录处理历史
         process_record = {
@@ -161,9 +171,8 @@ class PaperCategoryManager:
         for category, terms in self.processed_data.items():
             if remove_keyword in terms:
                 self.processed_data[category].remove(remove_keyword)
-        df_save=pd.read_csv(os.path.join(self.out_dir, 'paper_labeled.csv'))
         df_save['labels'] = df_save['labels'].apply(lambda x: '|'.join([keep_keyword if k == remove_keyword else k for k in x.split('|')]))
-        df_save.to_csv(os.path.join(self.out_dir, 'labeled_purify.csv'),index=False)
+        return df_save
 
     def calculate_similarities(self, embeddings):
         # 提取所有的词向量
@@ -190,6 +199,55 @@ class PaperCategoryManager:
             for term in terms:
                 inverse_index[term]=category
         return inverse_index
+    def calculate_similarities_faiss_batch(self, embeddings, threshold=0.8, batch_size=1000):
+        """
+        使用批处理方式计算向量相似度
+        
+        Args:
+            embeddings: dict, 关键词到向量的映射
+            threshold: float, 相似度阈值 (0~1之间)
+            batch_size: int, 批处理大小
+        Returns:
+            list of [similarity, keyword1, keyword2]
+        """
+        keywords = list(embeddings.keys())
+        vectors = np.array([embeddings[keyword] for keyword in keywords]).astype('float32')
+        dimension = vectors.shape[1]
+        
+        # 归一化向量
+        faiss.normalize_L2(vectors)
+        
+        # 创建索引
+        index = faiss.IndexFlatIP(dimension)
+        index.add(vectors)
+        
+        similarities = []
+        total = len(vectors)
+        k = 100  # 每个向量搜索的邻居数量
+        
+        # 批处理搜索
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+            batch_vectors = vectors[start:end]
+            
+            # 批量搜索
+            D, I = index.search(batch_vectors, k)
+            
+            # 处理这批结果
+            for batch_i, (dists, idxs) in enumerate(zip(D, I)):
+                global_i = start + batch_i
+                for dist, j in zip(dists, idxs):
+                    if j > global_i and dist >= threshold:
+                        similarities.append([
+                            float(dist),
+                            keywords[global_i],
+                            keywords[j]
+                        ])
+        
+        return sorted(similarities, key=lambda x: x[0], reverse=True)
+
+
+
 def prefiy_keywords_write():
     manager = PaperCategoryManager()
     manager.process_duplicates()

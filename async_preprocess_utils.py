@@ -298,13 +298,35 @@ def judge_duplicate_categores(keyword, categories: List[str]) -> str:
         print(f"Error processing abstract: {str(e)}")
         return None
 
-def embeding_keywords(keywords:List[str])->Dict[str, List[float]]:
-    """嵌入关键词"""
-    embeddings = client.embeddings.create(
-        model="text-embedding-3-large",
-        input=keywords
-    )
-    return {keyword: embedding.embedding for keyword, embedding in zip(keywords, embeddings.data)}
+def embeding_keywords(keywords: List[str]) -> Dict[str, List[float]]:
+    """嵌入关键词，支持批量处理超过2000个关键词的情况
+    
+    Args:
+        keywords: 关键词列表
+    
+    Returns:
+        包含关键词及其嵌入向量的字典
+    """
+    BATCH_SIZE = 2000  # OpenAI API 的单次请求限制
+    result = {}
+    
+    # 将关键词列表分批处理
+    for i in range(0, len(keywords), BATCH_SIZE):
+        batch = keywords[i:i + BATCH_SIZE]
+        embeddings = client.embeddings.create(
+            model="text-embedding-3-large",
+            input=batch,
+            dimensions=256
+        )
+        # 将当前批次的结果添加到总结果中
+        batch_result = {
+            keyword: embedding.embedding 
+            for keyword, embedding in zip(batch, embeddings.data)
+        }
+        result.update(batch_result)
+    
+    return result
+
 
 def get_result_num_with_retry(keyword: str, max_retries: int = 3, delay: int = 2) -> int:
     """带重试机制的获取搜索结果数量函数"""

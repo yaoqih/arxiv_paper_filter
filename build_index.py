@@ -52,13 +52,14 @@ def transform_json(data, df):
             transformed_data[category][item] = process_keyword(item, df)
     
     return transformed_data
-def build_index_write(json_path = 'data/labels_purify.json',csv_path = 'data/labeled_purify.csv',output_path = 'data/label_index.json'):
+def build_index(json_path = 'data/labels_purify.json',csv_path = 'data/labeled_purify.csv',output_path = 'data/label_index.json',write=False):
     data, df = load_files(json_path, csv_path)
     transformed_data = transform_json(data, df)
     # 保存结果
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(transformed_data, f, ensure_ascii=False, indent=4)
-    progress_manager.set_keyword_status(build_index=True)
+    if write:
+        progress_manager.set_keyword_status(build_index=True)
 
 if __name__ == "__main__":
-    build_index_write()
+    build_index()
