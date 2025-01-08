@@ -116,7 +116,7 @@ class PaperCategoryManager:
                 self.duplicates_save[term] = keep_category
                 self.save_results(duplicates_save=True)
 
-    def find_similar_keywords(self, data: dict, threshold: float = 0.82) -> List[str]:
+    def find_similar_keywords(self, data: dict, threshold: float = 0.8) -> List[str]:
         """查找与给定关键词相似的关键词"""
         inverse_index = self.build_inverse_index(data)
         keywords_all=set(inverse_index.keys())

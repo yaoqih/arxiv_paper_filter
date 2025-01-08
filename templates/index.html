@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArXiv论文检索助手
+    <title>Arxiv ResearchPilot
     </title>
     <!-- 引入Bootstrap CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
@@ -55,8 +55,9 @@
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
-                <img src="{{ url_for('static', filename='favicon.png') }}"alt="Bootstrap" width="30" height="24" class="d-inline-block align-text-top">
-                Arxiv 论文筛选
+                <img src="{{ url_for('static', filename='favicon.png') }}" alt="Bootstrap" width="30" height="24"
+                    class="d-inline-block align-text-top">
+                Arxiv ResearchPilot
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -65,10 +66,10 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="/">预处理</a>
+                        <a class="nav-link active" aria-current="page" href="/">论文检索</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/filter">结果页</a>
+                        <a class="nav-link" href="/filter">检索结果</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" aria-current="page" href="/outlook">Paper Daily</a>
@@ -80,7 +81,7 @@
         </div>
     </nav>
     <div class="container py-4">
-        <h2 class="text-center mb-4">ArXiv论文检索助手</h2>
+        <h2 class="text-center mb-4">Arxiv ResearchPilot</h2>
         <!-- Toast 提示 -->
         <div class="toast-container position-fixed top-0 end-0 p-3">
             <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -195,25 +196,28 @@
                         <div id="update-keywords" class="mt-2">
                             <!-- 动态填充关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('label',[], globalConfig.search_preview.total_count * 2, '正在提取关键词....')">
+                        <button class="btn btn-outline-warning btn-sm mt-2"
+                            onclick="sendRequest('label',[], globalConfig.search_preview.total_count * 2, '正在提取关键词....')">
                             <i class="bi bi-arrow-right-circle"></i> 提取关键词
                         </button>
                     </div>
                     <div class="col-md-4">
-                        <h6>关键词纯化</h6>
+                        <h6>关键词清洗</h6>
                         <div id="refined-keywords" class="mt-2">
                             <!-- 动态填充纯化关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('purify',[], globalConfig.search_preview.total_count * 2, '正在纯化关键词....')">
-                            <i class="bi bi-arrow-right-circle"></i> 纯化关键词
+                        <button class="btn btn-outline-warning btn-sm mt-2"
+                            onclick="sendRequest('purify',[], globalConfig.search_preview.total_count * 2, '正在清洗关键词....')">
+                            <i class="bi bi-arrow-right-circle"></i> 关键词清洗
                         </button>
                     </div>
                     <div class="col-md-4">
                         <h6>构建索引</h6>
                         <div id="preprocessed-keywords" class="mt-2">
-                            <!-- 动态填充预处理关键词 -->
+                            <!-- 动态填充论文检索关键词 -->
                         </div>
-                        <button class="btn btn-outline-warning btn-sm mt-2" onclick="sendRequest('build_index',[], parseInt(globalConfig.search_preview.total_count/10) ,'正在构建索引')">
+                        <button class="btn btn-outline-warning btn-sm mt-2"
+                            onclick="sendRequest('build_index',[], parseInt(globalConfig.search_preview.total_count/10) ,'正在构建索引')">
                             <i class="bi bi-arrow-right-circle"></i> 构建索引
                         </button>
                     </div>
@@ -223,10 +227,10 @@
 
     </div>
     <script>
-        let globalConfig={}
+        let globalConfig = {}
         function confirmClear() {
             if (confirm('确定要清除所有内容吗？')) {
-                sendRequest('clean',3,"正在清理....");  // 调用清除请求函数
+                sendRequest('clean', [], 3, "正在清理....");  // 调用清除请求函数
             }
         }
         // 定义防抖函数
@@ -295,9 +299,9 @@
             let categoriesHtml = '';
             for (let category in config.search_preview.categories) {
                 categoriesHtml += `
-            <div class="badge bg-secondary me-2 mb-2">
+            <a class="badge bg-secondary me-2 mb-2" href="https://arxiv.org/search/?query=${category}&searchtype=all&source=header" target="_blank">
                 ${category}: ${config.search_preview.categories[category]}
-            </div>
+            </a>
         `;
             }
             $('#categories-container').html(categoriesHtml);
@@ -320,7 +324,7 @@
             let refinedHtml = `<span class="badge ${config.purify ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.purify}</span>`
             $('#refined-keywords').html(refinedHtml);
 
-            // 更新预处理关键词
+            // 更新论文检索关键词
             let preprocessedHtml = `<span class="badge ${config.build_index ? 'bg-success' : 'bg-danger'} me-1 mb-1">${config.build_index}</span>`
             $('#preprocessed-keywords').html(preprocessedHtml);
 
@@ -336,17 +340,20 @@
 
         // 定期刷新状态
         function refreshStatus() {
-            $.get('/api/get_progress', function (config) {
-                updateUI(config);
-                globalConfig=config;
-            }).then(() => {
-                console.log('状态刷新成功');
-
-            }).catch(err => {
-                console.error('状态刷新失败:', err);
+            $.ajax({
+                url: '/api/get_progress',
+                method: 'GET',
+                success: function (config) {
+                    updateUI(config);
+                    globalConfig = config;
+                    console.log('状态刷新成功');
+                },
+                error: function (err) {
+                    console.error('状态刷新失败:', err);
+                }
             });
-
         }
+
         let isInputting = false;
 
         // 输入框变化处理
@@ -433,7 +440,7 @@
             });
         }
 
-        function sendRequest(fieldId, content_ids = [],duration = 5, message = '处理中...') {
+        function sendRequest(fieldId, content_ids = [], duration = 5, message = '处理中...') {
             // content_ids 现在是一个数组
             const contents = {};
 
@@ -456,7 +463,7 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('Success:', data);
-                    showToastWithCountdown(duration,message);
+                    showToastWithCountdown(duration, message);
                     // 处理响应数据
                 })
         }
@@ -466,4 +473,5 @@
     <!-- 引入jQuery和Bootstrap JS -->
 
 </body>
+
 </html>

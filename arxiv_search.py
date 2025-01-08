@@ -119,7 +119,7 @@ class ArxivScraper:
         results_text = soup.find('h1', class_='title').text.strip()
         if 'Showing 'in results_text:
             # 使用字符串处理提取数字
-            total_results = results_text.split('of')[1].split('results')[0].strip()
+            total_results = results_text.split('of')[1].split('results')[0].strip().replace(',', '')
         else:
             total_results = 0
         return int(total_results)
